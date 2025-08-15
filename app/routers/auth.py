@@ -1,25 +1,59 @@
-import os
-from supabase import create_client, Client
+# app/routers/auth.py
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from dotenv import load_dotenv
+import os
+import requests
 
-# Load variables from .env file
+# Load environment variables from .env
 load_dotenv()
 
-# Read environment variables
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
-# Initialize Supabase client with service role key (backend only)
-# Use anon key for frontend endpoints
-def get_supabase_client(use_service_role: bool = True) -> Client:
-    key = SUPABASE_SERVICE_ROLE_KEY if use_service_role else SUPABASE_ANON_KEY
-    if not SUPABASE_URL or not key:
-        raise ValueError("Missing Supabase credentials in .env")
-    return create_client(SUPABASE_URL, key)
+if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+    raise RuntimeError("Missing SUPABASE_URL or SUPABASE_ANON_KEY in environment variables")
 
-# Example usage
-if __name__ == "__main__":
-    # Backend example: using service role key
-    supabase = get_supabase_client()
-    print("Connected to Supabase with Service Role key.")
+# Create router
+router = APIRouter(
+    prefix="/auth",
+    tags=["Authentication"]
+)
+
+# Request models
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+
+# Routes
+@router.post("/login")
+async def login(data: LoginRequest):
+    """Authenticate user via Supabase Auth API"""
+    resp = requests.post(
+        f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
+        headers={"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"},
+        json={"email": data.email, "password": data.password}
+    )
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=resp.json())
+
+    return resp.json()
+
+@router.post("/register")
+async def register(data: RegisterRequest):
+    """Register new user via Supabase Auth API"""
+    resp = requests.post(
+        f"{SUPABASE_URL}/auth/v1/signup",
+        headers={"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"},
+        json={"email": data.email, "password": data.password}
+    )
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=resp.json())
+
+    return resp.json()
