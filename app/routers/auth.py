@@ -1,42 +1,25 @@
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
-from supabase import create_client
 import os
+from supabase import create_client, Client
+from dotenv import load_dotenv
 
-# Supabase credentials
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://knjhqjygkplullnsqmdk.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtuamhxanlna3BsdWxsbnNxbWRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5NDA1NTgsImV4cCI6MjA3MDUxNjU1OH0.VI-XbbWnxW5GMqhsoaUTGidGJ2nR9xa-DkFujvmxNLE")
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Load variables from .env file
+load_dotenv()
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+# Read environment variables
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
-class LoginRequest(BaseModel):
-    email: str
-    password: str
+# Initialize Supabase client with service role key (backend only)
+# Use anon key for frontend endpoints
+def get_supabase_client(use_service_role: bool = True) -> Client:
+    key = SUPABASE_SERVICE_ROLE_KEY if use_service_role else SUPABASE_ANON_KEY
+    if not SUPABASE_URL or not key:
+        raise ValueError("Missing Supabase credentials in .env")
+    return create_client(SUPABASE_URL, key)
 
-@router.post("/login")
-def login(data: LoginRequest):
-    # Sign in with email and password
-    result = supabase.auth.sign_in_with_password({
-        "email": data.email,
-        "password": data.password
-    })
-
-    if result.user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
-        )
-
-    return {
-        "message": "Login successful",
-        "user": {
-            "id": result.user.id,
-            "email": result.user.email
-        },
-        "access_token": result.session.access_token
-    }
-
-@router.post("/logout")
-def logout():
-    return {"message": "Logout successful"}
+# Example usage
+if __name__ == "__main__":
+    # Backend example: using service role key
+    supabase = get_supabase_client()
+    print("Connected to Supabase with Service Role key.")
